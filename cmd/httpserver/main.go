@@ -1,6 +1,7 @@
 package main
 
 import (
+    "crypto/sha256"
     "fmt"
     "io"
     "log"
@@ -10,6 +11,7 @@ import (
     "strings"
     "syscall"
 
+    "github.com/mrtuuro/http-from-tcp/internal/headers"
     "github.com/mrtuuro/http-from-tcp/internal/request"
     "github.com/mrtuuro/http-from-tcp/internal/response"
     "github.com/mrtuuro/http-from-tcp/internal/server"
@@ -32,6 +34,9 @@ func main() {
 }
 
 func ServerHandler(w *response.Writer, req *request.Request) {
+    if req.RequestLine.RequestTarget == "/video" {
+        videoHandler(w, req)
+    }
     if strings.HasPrefix(req.RequestLine.RequestTarget, "/httpbin") {
         proxyHandler(w, req)
         return
@@ -48,6 +53,24 @@ func ServerHandler(w *response.Writer, req *request.Request) {
     return
 }
 
+
+func videoHandler(w *response.Writer, req *request.Request) {
+    const videoPath = "assets/vim.mp4"
+    fmt.Println(os.Getwd())
+    data, err := os.ReadFile(videoPath)
+    if err != nil {
+        handler500(w, req)
+    }
+    w.WriteStatusLine(response.StatusOK)
+    h := response.GetDefaultHeaders(len(data))
+    h.Override("Content-Type", "video/mp4")
+    fmt.Println(h)
+    w.WriteHeaders(h)
+    w.WriteBody(data)
+
+}
+
+
 func proxyHandler(w *response.Writer, req *request.Request) {
     target := strings.TrimPrefix(req.RequestLine.RequestTarget, "/httpbin/")
     url := "https://httpbin.org/" + target
@@ -62,10 +85,13 @@ func proxyHandler(w *response.Writer, req *request.Request) {
     w.WriteStatusLine(response.StatusOK)
     h := response.GetDefaultHeaders(0)
     h.Override("Transfer-Encoding", "chunked")
+    h.Set("Trailers", "X-Content-SHA256")
+    h.Override("Trailer", "X-Content-SHA256, X-Content-Length")
     h.Del("Content-Length")
     w.WriteHeaders(h)
 
-    const maxChunkSize = 8
+    const maxChunkSize = 1024
+    var fullBody []byte
     buffer := make([]byte, maxChunkSize)
     for {
         n, err := resp.Body.Read(buffer)
@@ -76,6 +102,7 @@ func proxyHandler(w *response.Writer, req *request.Request) {
                 fmt.Println("Error writing chunked body:", err)
                 break
             }
+            fullBody = append(fullBody, buffer[:n]...)
         }
         if err == io.EOF {
             break
@@ -90,6 +117,14 @@ func proxyHandler(w *response.Writer, req *request.Request) {
         fmt.Println("Error writing chunked body done:", err)
     }
 
+    trailers := headers.NewHeaders()
+    sha256 := fmt.Sprintf("%x", sha256.Sum256(fullBody))
+    trailers.Override("X-Content-SHA256", sha256)
+    trailers.Override("X-Content-Length", fmt.Sprintf("%d", len(fullBody)))
+    err = w.WriteTrailers(trailers)
+    if err != nil {
+        fmt.Println("Error writing chunked body done:", err)
+    }
 }
 
 func handler400(w *response.Writer, _ *request.Request) {
