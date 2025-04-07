@@ -3,30 +3,35 @@ package response
 import (
     "fmt"
     "io"
-    "log"
 
     "github.com/mrtuuro/http-from-tcp/internal/headers"
 )
 
 type writerState int
+
 const (
-    writeStatusLine writerState = iota
-    writeHeaders
-    writeBody
+    writerStateStatusLine writerState = iota
+    writerStateHeaders
+    writerStateBody
 )
 
 type Writer struct {
-    io.Writer
-    state writerState
+    writer io.Writer
+    state  writerState
 }
 
-func NewHandlerWriter(w io.Writer) *Writer {
+func NewWriter(w io.Writer) *Writer {
     return &Writer{
-        w,
-        writeStatusLine,
+        writer: w,
+        state:  writerStateStatusLine,
     }
 }
+
 func (w *Writer) WriteStatusLine(statusCode StatusCode) error {
+    if w.state != writerStateStatusLine {
+        return fmt.Errorf("cannot write status line in state %d", w.state)
+    }
+
     reasonPhraseMap := map[StatusCode]string{
         200: "HTTP/1.1 200 OK\r\n",
         400: "HTTP/1.1 400 Bad Request\r\n",
@@ -37,29 +42,31 @@ func (w *Writer) WriteStatusLine(statusCode StatusCode) error {
     if !ok {
         reasonPhrase = "\r\n"
     }
-    _, err := w.Write([]byte(reasonPhrase))
-    if err != nil {
-        log.Printf("Error writing reason phrase: %v", err)
-        return err
-    }
-    return nil
+    _, err := w.writer.Write([]byte(reasonPhrase))
+    w.state = writerStateHeaders
+    return err
 }
 
 func (w *Writer) WriteHeaders(headers headers.Headers) error {
+    if w.state != writerStateHeaders {
+        return fmt.Errorf("cannot write headers in state %d", w.state)
+    }
+
     for k, v := range headers {
         headerData := []byte(fmt.Sprintf("%s: %s\r\n", k, v))
-        _, err := w.Write(headerData)
+        _, err := w.writer.Write(headerData)
         if err != nil {
             return err
         }
     }
-    _, err := w.Write([]byte("\r\n"))
-    if err != nil {
-        return err
-    }
-    return nil
+    _, err := w.writer.Write([]byte("\r\n"))
+    w.state = writerStateBody
+    return err
 }
 
 func (w *Writer) WriteBody(p []byte) (int, error) {
-    return 0, nil
+    if w.state != writerStateBody {
+        return 0, fmt.Errorf("cannow write body in state %d", w.state)
+    }
+    return w.writer.Write(p)
 }

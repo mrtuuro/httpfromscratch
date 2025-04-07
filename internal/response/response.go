@@ -1,7 +1,6 @@
 package response
 
 import (
-    "fmt"
     "io"
     "log"
     "strconv"
@@ -31,21 +30,6 @@ func WriteStatusLine(w io.Writer, statusCode StatusCode) error {
     _, err := w.Write([]byte(reasonPhrase))
     if err != nil {
         log.Printf("Error writing reason phrase: %v", err)
-        return err
-    }
-    return nil
-}
-
-func WriteHeaders(w io.Writer, headers headers.Headers) error {
-    for k, v := range headers {
-        headerData := []byte(fmt.Sprintf("%s: %s\r\n", k, v))
-        _, err := w.Write(headerData)
-        if err != nil {
-            return err
-        }
-    }
-    _, err := w.Write([]byte("\r\n"))
-    if err != nil {
         return err
     }
     return nil

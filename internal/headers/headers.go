@@ -43,7 +43,6 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
     return idx + 2, false, nil
 }
 
-
 func (h Headers) Get(key []byte) ([]byte, bool) {
     keyStr := string(bytes.ToLower(key))
     v, ok := h[keyStr]
@@ -63,6 +62,11 @@ func (h Headers) Set(key, value string) {
     h[key] = value
 }
 
+func (h Headers) Override(key, value string) {
+    key = strings.ToLower(key)
+    h[key] = value
+}
+
 var tokenChars = []byte{'!', '#', '$', '%', '&', '\'', '*', '+', '-', '.', '^', '_', '`', '|', '~'}
 
 // validTokens checks if the data contains only valid tokens
@@ -78,4 +82,3 @@ func validTokens(data []byte) bool {
     }
     return true
 }
-
