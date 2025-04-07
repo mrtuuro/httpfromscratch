@@ -14,7 +14,6 @@ type Handler func(w *response.Writer, req *request.Request)
 
 type Server struct {
     handler  Handler
-    writer   *response.Writer
     listener net.Listener
     closed   atomic.Bool
 }
@@ -64,6 +63,7 @@ func (s *Server) handle(conn net.Conn) {
         return
     }
     s.handler(w, req)
+    return
 }
 
 func (s *Server) Close() error {
