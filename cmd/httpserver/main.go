@@ -34,6 +34,9 @@ func main() {
 }
 
 func ServerHandler(w *response.Writer, req *request.Request) {
+    if req.RequestLine.RequestTarget == "/upload" {
+        uploadHandler(w, req)
+    }
     if req.RequestLine.RequestTarget == "/video" {
         videoHandler(w, req)
     }
@@ -53,20 +56,42 @@ func ServerHandler(w *response.Writer, req *request.Request) {
     return
 }
 
+func uploadHandler(w *response.Writer, req *request.Request) {
+    filePath := "test.mp4"
+
+    bufferSize := 1024
+    idx := 0
+
+    reqData := req.Body
+    for idx <= len(reqData) {
+        err := os.WriteFile(filePath, reqData[:bufferSize], 0644)
+        if err != nil {
+            handler500(w, req)
+        }
+    }
+
+    w.WriteStatusLine(response.StatusOK)
+    h := response.GetDefaultHeaders(len(reqData))
+    h.Override("Content-Type", "text/plain")
+    fmt.Println(h)
+    w.WriteHeaders(h)
+    w.WriteBody([]byte("Downloaded successfuly!"))
+
+}
 
 func videoHandler(w *response.Writer, req *request.Request) {
     const videoPath = "assets/vim.mp4"
     fmt.Println(os.Getwd())
-    data, err := os.ReadFile(videoPath)
+    reqData, err := os.ReadFile(videoPath)
     if err != nil {
         handler500(w, req)
     }
     w.WriteStatusLine(response.StatusOK)
-    h := response.GetDefaultHeaders(len(data))
+    h := response.GetDefaultHeaders(len(reqData))
     h.Override("Content-Type", "video/mp4")
     fmt.Println(h)
     w.WriteHeaders(h)
-    w.WriteBody(data)
+    w.WriteBody(reqData)
 
 }
 
